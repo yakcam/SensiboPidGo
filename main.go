@@ -4,11 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"os"
 )
 
-func main() {
+func run() int {
+	apiToken := os.Getenv("SENSIBO_API_TOKEN")
+	if len(apiToken) == 0 {
+		fmt.Println("SENSIBO_API_TOKEN is not set")
+		return -2
+	}
 
-	resp, err := http.Get("https://home.sensibo.com/api/v2/pods/RWjHAj6H?apiKey=************&fields=location,measurements")
+	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/RWjHAj6H?apiKey=%s&fields=location,measurements", apiToken)
+
+	resp, err := http.Get(deviceUrl)
 	if err != nil {
 		panic(err)
 	}
@@ -24,4 +32,10 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
+
+	return 0
+}
+
+func main() {
+	os.Exit(run())
 }

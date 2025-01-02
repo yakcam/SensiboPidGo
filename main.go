@@ -1,12 +1,13 @@
 package main
 
 import (
-	"SensiboPidGo/models"
-	"encoding/json"
+	"SensiboPidGo/apiClient"
 	"fmt"
-	"io"
-	"net/http"
+	"math"
 	"os"
+	"time"
+
+	"go.einride.tech/pid"
 )
 
 func run() int {
@@ -22,40 +23,57 @@ func run() int {
 		return -3
 	}
 
-	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s?apiKey=%s&fields=location,measurements", deviceId, apiToken)
-
-	resp, err := http.Get(deviceUrl)
+	apiResponse, err := apiClient.GetPods(deviceId, apiToken)
 	if err != nil {
-		fmt.Println("Error making request:", err)
-		return -5
-	}
-	defer resp.Body.Close()
-
-	// Check if the request was successful
-	if resp.StatusCode != http.StatusOK {
-		fmt.Println("Error: status code", resp.StatusCode)
-		return -10
-	}
-
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return -20
-	}
-
-	// Unmarshal the JSON response into the ApiResponse struct
-	var apiResponse models.PodsResponse
-	err = json.Unmarshal(body, &apiResponse)
-	if err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
-		return -30
+		fmt.Println(err)
 	}
 
 	// Print the latest temperature
 	fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
+	lastResultTime := apiResponse.Result.Measurements.Time.Time
+	targetTemperature := 18.0
+	requestedTemperature := targetTemperature
 
-	return 0
+	// Create a PID controller.
+	c := pid.Controller{
+		Config: pid.ControllerConfig{
+			ProportionalGain: 5.0,
+			IntegralGain:     0,
+			DerivativeGain:   0,
+		},
+	}
+
+	// Update the PID controller.
+	c.Update(pid.ControllerInput{
+		ReferenceSignal:  targetTemperature,
+		ActualSignal:     apiResponse.Result.Measurements.Temperature,
+		SamplingInterval: 0,
+	})
+	fmt.Printf("%+v\n", c.State)
+
+	// Loop round and update
+	for {
+		apiResponse, err := apiClient.GetPods(deviceId, apiToken)
+		if err != nil {
+			fmt.Println(err)
+		} else if apiResponse.Result.Measurements.Time.Time != lastResultTime {
+			c.Update(pid.ControllerInput{
+				ReferenceSignal:  targetTemperature,
+				ActualSignal:     apiResponse.Result.Measurements.Temperature,
+				SamplingInterval: apiResponse.Result.Measurements.Time.Time.Sub(lastResultTime),
+			})
+			fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
+			fmt.Printf("%+v\n", c.State)
+			lastResultTime = apiResponse.Result.Measurements.Time.Time
+			requestedTemperature = math.Min(targetTemperature+c.State.ControlSignal, 30.0)
+			fmt.Printf("Setting temperature to %+v\n", requestedTemperature)
+		} else {
+			fmt.Println("No new data")
+		}
+
+		// Wait 1 minute
+		time.Sleep(60000000000)
+	}
 }
 
 func main() {

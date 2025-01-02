@@ -14,7 +14,13 @@ func run() int {
 		return -2
 	}
 
-	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/RWjHAj6H?apiKey=%s&fields=location,measurements", apiToken)
+	deviceId := os.Getenv("SENSIBO_DEVICE_ID")
+	if len(deviceId) == 0 {
+		fmt.Println("SENSIBO_DEVICE_ID is not set")
+		return -2
+	}
+
+	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s?apiKey=%s&fields=location,measurements", deviceId, apiToken)
 
 	resp, err := http.Get(deviceUrl)
 	if err != nil {

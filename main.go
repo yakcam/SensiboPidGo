@@ -31,13 +31,13 @@ func run() int {
 	// Print the latest temperature
 	fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 	lastResultTime := apiResponse.Result.Measurements.Time.Time
-	targetTemperature := 18.0
-	requestedTemperature := targetTemperature
+	targetTemperature := 21.0
+	requestedTemperature := int(targetTemperature)
 
 	// Create a PID controller.
 	c := pid.Controller{
 		Config: pid.ControllerConfig{
-			ProportionalGain: 5.0,
+			ProportionalGain: 3.0,
 			IntegralGain:     0,
 			DerivativeGain:   0,
 		},
@@ -65,14 +65,16 @@ func run() int {
 			fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 			fmt.Printf("%+v\n", c.State)
 			lastResultTime = apiResponse.Result.Measurements.Time.Time
-			requestedTemperature = math.Min(targetTemperature+c.State.ControlSignal, 30.0)
-			fmt.Printf("Setting temperature to %+v\n", requestedTemperature)
+			requestedTemperature = int(math.Round(math.Min(targetTemperature+c.State.ControlSignal, 30.0)))
+			if requestedTemperature != int(apiResponse.Result.Measurements.Temperature) {
+				fmt.Printf("Setting temperature to %+v\n", requestedTemperature)
+				apiClient.SetTemperature(deviceId, apiToken, requestedTemperature)
+			}
 		} else {
 			fmt.Println("No new data")
 		}
 
-		// Wait 1 minute
-		time.Sleep(60000000000)
+		time.Sleep(29000000000)
 	}
 }
 

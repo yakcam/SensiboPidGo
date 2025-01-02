@@ -1,8 +1,10 @@
 package main
 
 import (
-	"bufio"
+	"SensiboPidGo/models"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -24,20 +26,34 @@ func run() int {
 
 	resp, err := http.Get(deviceUrl)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error making request:", err)
+		return -5
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("Response status:", resp.Status)
-
-	scanner := bufio.NewScanner(resp.Body)
-	for i := 0; scanner.Scan() && i < 5; i++ {
-		fmt.Println(scanner.Text())
+	// Check if the request was successful
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("Error: status code", resp.StatusCode)
+		return -10
 	}
 
-	if err := scanner.Err(); err != nil {
-		panic(err)
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return -20
 	}
+
+	// Unmarshal the JSON response into the ApiResponse struct
+	var apiResponse models.PodsResponse
+	err = json.Unmarshal(body, &apiResponse)
+	if err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+		return -30
+	}
+
+	// Print the latest temperature
+	fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 
 	return 0
 }

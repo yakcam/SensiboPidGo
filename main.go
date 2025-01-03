@@ -32,6 +32,14 @@ func run() int {
 	targetTemp, _ := strconv.ParseFloat(targetTempString, 32)
 	log.Println("Target temperature is:", targetTemp)
 
+	gainString := os.Getenv("GAIN")
+	if len(gainString) == 0 {
+		log.Fatal("GAIN is not set")
+		return -5
+	}
+	gain, _ := strconv.ParseFloat(gainString, 32)
+	log.Println("Gain is:", gain)
+
 	apiResponse, err := apiClient.GetPods(deviceId, apiToken)
 	if err != nil {
 		log.Fatal(err)
@@ -45,7 +53,7 @@ func run() int {
 	// Create a PID controller.
 	c := pid.Controller{
 		Config: pid.ControllerConfig{
-			ProportionalGain: 4,
+			ProportionalGain: 7,
 			IntegralGain:     0,
 			DerivativeGain:   0,
 		},

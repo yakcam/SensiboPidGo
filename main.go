@@ -2,7 +2,7 @@ package main
 
 import (
 	"SensiboPidGo/apiClient"
-	"fmt"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -14,30 +14,31 @@ import (
 func run() int {
 	apiToken := os.Getenv("SENSIBO_API_TOKEN")
 	if len(apiToken) == 0 {
-		fmt.Println("SENSIBO_API_TOKEN is not set")
+		log.Fatal("SENSIBO_API_TOKEN is not set")
 		return -2
 	}
 
 	deviceId := os.Getenv("SENSIBO_DEVICE_ID")
 	if len(deviceId) == 0 {
-		fmt.Println("SENSIBO_DEVICE_ID is not set")
+		log.Fatal("SENSIBO_DEVICE_ID is not set")
 		return -3
 	}
 
 	targetTempString := os.Getenv("TARGET_TEMPERATURE")
 	if len(targetTempString) == 0 {
-		fmt.Println("TARGET_TEMPERATURE is not set")
+		log.Fatal("TARGET_TEMPERATURE is not set")
 		return -4
 	}
 	targetTemp, _ := strconv.ParseFloat(targetTempString, 32)
+	log.Println("Target temperature is:", targetTemp)
 
 	apiResponse, err := apiClient.GetPods(deviceId, apiToken)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 	// Print the latest temperature
-	fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
+	log.Printf("Temperature at %+s was %+v.\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 	lastResultTime := apiResponse.Result.Measurements.Time.Time
 	targetTemperature := targetTemp
 
@@ -56,29 +57,34 @@ func run() int {
 		ActualSignal:     apiResponse.Result.Measurements.Temperature,
 		SamplingInterval: 0,
 	})
-	fmt.Printf("%+v\n", c.State)
+	log.Printf("PID State: %+v\n", c.State)
 
 	// Loop round and update
 	for {
 		apiResponse, err := apiClient.GetPods(deviceId, apiToken)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
+		} else if !apiResponse.Result.AcState.On {
+			log.Println("AC is off, waiting 5 minutes before checking again.")
+			time.Sleep(300000000000)
 		} else if apiResponse.Result.Measurements.Time.Time != lastResultTime {
 			c.Update(pid.ControllerInput{
 				ReferenceSignal:  targetTemperature,
 				ActualSignal:     apiResponse.Result.Measurements.Temperature,
 				SamplingInterval: apiResponse.Result.Measurements.Time.Time.Sub(lastResultTime),
 			})
-			fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
-			fmt.Printf("%+v\n", c.State)
+			log.Printf("Temperature at %+s was %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
+			log.Printf("PID State: %+v\n", c.State)
 			lastResultTime = apiResponse.Result.Measurements.Time.Time
 			requestedTemperature := int(math.Round(math.Min(targetTemperature+c.State.ControlSignal, 30.0)))
 			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature {
-				fmt.Printf("Setting temperature to %+v\n", requestedTemperature)
+				log.Printf("Setting temperature to %+v\n", requestedTemperature)
 				apiClient.SetTemperature(deviceId, apiToken, requestedTemperature)
+			} else {
+				log.Println("No temperature change needed.")
 			}
 		} else {
-			fmt.Println("No new data")
+			log.Println("No new data")
 		}
 
 		time.Sleep(31000000000)

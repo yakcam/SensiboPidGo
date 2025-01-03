@@ -44,7 +44,7 @@ func SetTemperature(deviceId string, apiToken string, temperature int) error {
 }
 
 func GetPods(deviceId string, apiToken string) (models.PodsResponse, error) {
-	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s?apiKey=%s&fields=location,measurements", deviceId, apiToken)
+	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s?apiKey=%s&fields=location,measurements,acState", deviceId, apiToken)
 
 	resp, err := http.Get(deviceUrl)
 	if err != nil {

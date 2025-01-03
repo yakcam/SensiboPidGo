@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"time"
 
 	"go.einride.tech/pid"
@@ -23,6 +24,13 @@ func run() int {
 		return -3
 	}
 
+	targetTempString := os.Getenv("TARGET_TEMPERATURE")
+	if len(targetTempString) == 0 {
+		fmt.Println("TARGET_TEMPERATURE is not set")
+		return -4
+	}
+	targetTemp, _ := strconv.ParseFloat(targetTempString, 32)
+
 	apiResponse, err := apiClient.GetPods(deviceId, apiToken)
 	if err != nil {
 		fmt.Println(err)
@@ -31,13 +39,12 @@ func run() int {
 	// Print the latest temperature
 	fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 	lastResultTime := apiResponse.Result.Measurements.Time.Time
-	targetTemperature := 21.0
-	requestedTemperature := int(targetTemperature)
+	targetTemperature := targetTemp
 
 	// Create a PID controller.
 	c := pid.Controller{
 		Config: pid.ControllerConfig{
-			ProportionalGain: 3.0,
+			ProportionalGain: 4,
 			IntegralGain:     0,
 			DerivativeGain:   0,
 		},
@@ -65,8 +72,8 @@ func run() int {
 			fmt.Printf("%+s: %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 			fmt.Printf("%+v\n", c.State)
 			lastResultTime = apiResponse.Result.Measurements.Time.Time
-			requestedTemperature = int(math.Round(math.Min(targetTemperature+c.State.ControlSignal, 30.0)))
-			if requestedTemperature != int(apiResponse.Result.Measurements.Temperature) {
+			requestedTemperature := int(math.Round(math.Min(targetTemperature+c.State.ControlSignal, 30.0)))
+			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature {
 				fmt.Printf("Setting temperature to %+v\n", requestedTemperature)
 				apiClient.SetTemperature(deviceId, apiToken, requestedTemperature)
 			}
@@ -74,7 +81,7 @@ func run() int {
 			fmt.Println("No new data")
 		}
 
-		time.Sleep(29000000000)
+		time.Sleep(31000000000)
 	}
 }
 

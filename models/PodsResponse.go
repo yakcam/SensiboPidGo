@@ -36,8 +36,21 @@ type Measurements struct {
 	Rssi        int      `json:"rssi"`
 }
 
+type AcState struct {
+	Timestamp         TimeInfo `json:"timestamp"`
+	On                bool     `json:"on"`
+	Mode              string   `json:"mode"`
+	TargetTemperature int      `json:"targetTemperature"`
+	TemperatureUnit   string   `json:"temperatureUnit"`
+	FanLevel          string   `json:"fanLevel"`
+	Swing             string   `json:"swing"`
+	HorizontalSwing   string   `json:"horizontalSwing"`
+	Light             string   `json:"light"`
+}
+
 // Define the Result struct
 type Result struct {
+	AcState      AcState      `json:"acState"`
 	Location     Location     `json:"location"`
 	Measurements Measurements `json:"measurements"`
 }

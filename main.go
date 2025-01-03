@@ -53,7 +53,7 @@ func run() int {
 	// Create a PID controller.
 	c := pid.Controller{
 		Config: pid.ControllerConfig{
-			ProportionalGain: 7,
+			ProportionalGain: gain,
 			IntegralGain:     0,
 			DerivativeGain:   0,
 		},

@@ -5,42 +5,22 @@ import (
 	"log"
 	"math"
 	"os"
-	"strconv"
 	"time"
 
 	"go.einride.tech/pid"
 )
 
 func run() int {
-	apiToken := os.Getenv("SENSIBO_API_TOKEN")
-	if len(apiToken) == 0 {
-		log.Fatal("SENSIBO_API_TOKEN is not set")
-		return -2
+	config := GetConfiguration()
+
+	if config.Error != 0 {
+		return config.Error
 	}
 
-	deviceId := os.Getenv("SENSIBO_DEVICE_ID")
-	if len(deviceId) == 0 {
-		log.Fatal("SENSIBO_DEVICE_ID is not set")
-		return -3
-	}
+	log.Println("Target temperature is:", config.TargetTemperature)
+	log.Println("Gain is:", config.Gain)
 
-	targetTempString := os.Getenv("TARGET_TEMPERATURE")
-	if len(targetTempString) == 0 {
-		log.Fatal("TARGET_TEMPERATURE is not set")
-		return -4
-	}
-	targetTemp, _ := strconv.ParseFloat(targetTempString, 32)
-	log.Println("Target temperature is:", targetTemp)
-
-	gainString := os.Getenv("GAIN")
-	if len(gainString) == 0 {
-		log.Fatal("GAIN is not set")
-		return -5
-	}
-	gain, _ := strconv.ParseFloat(gainString, 32)
-	log.Println("Gain is:", gain)
-
-	apiResponse, err := apiClient.GetPods(deviceId, apiToken)
+	apiResponse, err := apiClient.GetPods(config.DeviceId, config.ApiToken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,12 +28,11 @@ func run() int {
 	// Print the latest temperature
 	log.Printf("Temperature at %+s was %+v.\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 	lastResultTime := apiResponse.Result.Measurements.Time.Time
-	targetTemperature := targetTemp
 
 	// Create a PID controller.
 	c := pid.Controller{
 		Config: pid.ControllerConfig{
-			ProportionalGain: gain,
+			ProportionalGain: config.Gain,
 			IntegralGain:     0,
 			DerivativeGain:   0,
 		},
@@ -61,7 +40,7 @@ func run() int {
 
 	// Update the PID controller.
 	c.Update(pid.ControllerInput{
-		ReferenceSignal:  targetTemperature,
+		ReferenceSignal:  config.TargetTemperature,
 		ActualSignal:     apiResponse.Result.Measurements.Temperature,
 		SamplingInterval: 0,
 	})
@@ -69,7 +48,7 @@ func run() int {
 
 	// Loop round and update
 	for {
-		apiResponse, err := apiClient.GetPods(deviceId, apiToken)
+		apiResponse, err := apiClient.GetPods(config.DeviceId, config.ApiToken)
 		if err != nil {
 			log.Println(err)
 		} else if !apiResponse.Result.AcState.On {
@@ -77,20 +56,44 @@ func run() int {
 			time.Sleep(300000000000)
 		} else if apiResponse.Result.Measurements.Time.Time != lastResultTime {
 			c.Update(pid.ControllerInput{
-				ReferenceSignal:  targetTemperature,
+				ReferenceSignal:  config.TargetTemperature,
 				ActualSignal:     apiResponse.Result.Measurements.Temperature,
 				SamplingInterval: apiResponse.Result.Measurements.Time.Time.Sub(lastResultTime),
 			})
 			log.Printf("Temperature at %+s was %+v\n", apiResponse.Result.Measurements.Time.Time, apiResponse.Result.Measurements.Temperature)
 			log.Printf("PID State: %+v\n", c.State)
 			lastResultTime = apiResponse.Result.Measurements.Time.Time
-			requestedTemperature := int(math.Round(math.Min(targetTemperature+c.State.ControlSignal, 30.0)))
-			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature {
+
+			// Temperature control
+			var requestedTemperature int
+			if c.State.ControlSignal >= 0 {
+				requestedTemperature = int(math.Round(math.Min(config.TargetTemperature+c.State.ControlSignal, 30.0))) // Max ac tenp
+			} else {
+				requestedTemperature = int(math.Round(math.Max(config.TargetTemperature+c.State.ControlSignal, 17.0))) // Min ac temp
+			}
+
+			// Mode control
+			var requestedMode string
+			if float64(requestedTemperature) >= config.TargetTemperature {
+				requestedMode = "heat"
+			} else {
+				requestedMode = "fan"
+			}
+
+			if requestedMode != apiResponse.Result.AcState.Mode {
+				log.Printf("Setting mode to %+s\n", requestedMode)
+				apiClient.SetMode(config.DeviceId, config.ApiToken, requestedMode)
+			} else {
+				log.Println("No mode change needed.")
+			}
+
+			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature && requestedMode != "fan" {
 				log.Printf("Setting temperature to %+v\n", requestedTemperature)
-				apiClient.SetTemperature(deviceId, apiToken, requestedTemperature)
+				apiClient.SetTemperature(config.DeviceId, config.ApiToken, requestedTemperature)
 			} else {
 				log.Println("No temperature change needed.")
 			}
+
 		} else {
 			log.Println("No new data")
 		}

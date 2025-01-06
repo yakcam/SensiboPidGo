@@ -3,6 +3,7 @@ package apiClient
 import (
 	"SensiboPidGo/models"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,10 +11,27 @@ import (
 )
 
 func SetTemperature(deviceId string, apiToken string, temperature int) error {
-	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s/acStates/targetTemperature?apiKey=%s", deviceId, apiToken)
+	return SetProperty(deviceId, apiToken, "targetTemperature", temperature)
+}
+
+func SetMode(deviceId string, apiToken string, mode string) error {
+	return SetProperty(deviceId, apiToken, "mode", mode)
+}
+
+func SetProperty[T int | string](deviceId string, apiToken string, propertyName string, propertyValue T) error {
 
 	// Create the JSON payload
-	payload := fmt.Sprintf(`{"newValue": %d}`, temperature)
+	var payload string
+	switch any(propertyValue).(type) {
+	case string:
+		payload = fmt.Sprintf(`{"newValue": "%s"}`, propertyValue)
+	case int:
+		payload = fmt.Sprintf(`{"newValue": %d}`, propertyValue)
+	default:
+		return errors.New("unsupported type")
+	}
+
+	deviceUrl := fmt.Sprintf("https://home.sensibo.com/api/v2/pods/%s/acStates/%s?apiKey=%s", deviceId, propertyName, apiToken)
 
 	// Create a new request
 	req, err := http.NewRequest(http.MethodPatch, deviceUrl, nil)

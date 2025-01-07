@@ -94,6 +94,15 @@ func run() int {
 				log.Println("No temperature change needed.")
 			}
 
+			if requestedMode == "fan" && apiResponse.Result.AcState.FanLevel != "auto" {
+				log.Println("Setting fan level to auto")
+				apiClient.SetFanLevel(config.DeviceId, config.ApiToken, "auto")
+			} else if requestedMode == "heat" && apiResponse.Result.AcState.FanLevel != "high" {
+				log.Println("Setting fan level to high.")
+				apiClient.SetFanLevel(config.DeviceId, config.ApiToken, "high")
+			} else {
+				log.Println("No fan level change needed.")
+			}
 		} else {
 			log.Println("No new data")
 		}

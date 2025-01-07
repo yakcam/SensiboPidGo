@@ -18,6 +18,10 @@ func SetMode(deviceId string, apiToken string, mode string) error {
 	return SetProperty(deviceId, apiToken, "mode", mode)
 }
 
+func SetFanLevel(deviceId string, apiToken string, fanLevel string) error {
+	return SetProperty(deviceId, apiToken, "fanLevel", fanLevel)
+}
+
 func SetProperty[T int | string](deviceId string, apiToken string, propertyName string, propertyValue T) error {
 
 	// Create the JSON payload

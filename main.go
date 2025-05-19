@@ -54,6 +54,9 @@ func run() int {
 		} else if !apiResponse.Result.AcState.On {
 			log.Println("AC is off, waiting 5 minutes before checking again.")
 			time.Sleep(300000000000)
+		} else if apiResponse.Result.AcState.Mode == "cool" {
+			log.Println("AC is cooling, waiting 5 minutes before checking again.")
+			time.Sleep(300000000000)
 		} else if apiResponse.Result.Measurements.Time.Time != lastResultTime {
 			c.Update(pid.ControllerInput{
 				ReferenceSignal:  config.TargetTemperature,

@@ -70,39 +70,29 @@ func run() int {
 			// Temperature control
 			var requestedTemperature int
 			if c.State.ControlSignal >= 0 {
-				requestedTemperature = int(math.Round(math.Min(config.TargetTemperature+c.State.ControlSignal, 30.0))) // Max ac tenp
+				requestedTemperature = int(math.Round(math.Min(config.TargetTemperature+c.State.ControlSignal, 30.0))) // Max ac temp
 			} else {
-				requestedTemperature = int(math.Round(math.Max(config.TargetTemperature+c.State.ControlSignal, 17.0))) // Min ac temp
+				// When temperature is reached or exceeded, set to minimum temperature (17°C)
+				requestedTemperature = 17
 			}
-
-			// Mode control
-			var requestedMode string
-			if float64(requestedTemperature) >= config.TargetTemperature {
-				requestedMode = "heat"
-			} else {
-				requestedMode = "fan"
-			}
-
-			if requestedMode != apiResponse.Result.AcState.Mode {
-				log.Printf("Setting mode to %+s\n", requestedMode)
-				apiClient.SetMode(config.DeviceId, config.ApiToken, requestedMode)
-			} else {
-				log.Println("No mode change needed.")
-			}
-
-			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature && requestedMode != "fan" {
+			if requestedTemperature != apiResponse.Result.AcState.TargetTemperature {
 				log.Printf("Setting temperature to %+v\n", requestedTemperature)
 				apiClient.SetTemperature(config.DeviceId, config.ApiToken, requestedTemperature)
 			} else {
 				log.Println("No temperature change needed.")
 			}
 
-			if requestedMode == "fan" && apiResponse.Result.AcState.FanLevel != "auto" {
-				log.Println("Setting fan level to auto")
-				apiClient.SetFanLevel(config.DeviceId, config.ApiToken, "auto")
-			} else if requestedMode == "heat" && apiResponse.Result.AcState.FanLevel != "high" {
-				log.Println("Setting fan level to high.")
-				apiClient.SetFanLevel(config.DeviceId, config.ApiToken, "high")
+			// Fan control based on whether heat is required
+			var requestedFanLevel string
+			if c.State.ControlSignal >= 0 {
+				requestedFanLevel = "high" // Heat is required
+			} else {
+				requestedFanLevel = "auto" // Temperature reached
+			}
+
+			if apiResponse.Result.AcState.FanLevel != requestedFanLevel {
+				log.Printf("Setting fan level to %s\n", requestedFanLevel)
+				apiClient.SetFanLevel(config.DeviceId, config.ApiToken, requestedFanLevel)
 			} else {
 				log.Println("No fan level change needed.")
 			}
